@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Kepler7.Core: lógica del juego + los 12 patrones.
+    Es un net8.0 "puro" (NO net8.0-windows), por lo que System.Windows.Forms
+    ni siquiera existe para este proyecto: la separación Core/UI queda garantizada por el compilador.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Kepler7.Core</RootNamespace>
+    <AssemblyName>Kepler7.Core</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+</Project>

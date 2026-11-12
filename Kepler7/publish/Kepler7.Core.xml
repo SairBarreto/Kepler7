@@ -1,0 +1,993 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Kepler7.Core</name>
+    </assembly>
+    <members>
+        <member name="T:Kepler7.Core.Aplicacion.JuegoKepler7">
+             <summary>
+             SINGLETON: el único punto de acceso al motor del juego. Los formularios no crean subsistemas por su
+             cuenta; le piden todo a <see cref="P:Kepler7.Core.Aplicacion.JuegoKepler7.Instancia"/>, de modo que la estación, la base, el progreso y el
+             combate en curso son los mismos objetos sin importar desde qué pantalla se mire.
+            
+             No es uno de los doce patrones del TP: es la pieza que los reúne. Por eso también concentra las
+             reglas del juego que no pertenecen a ningún patrón (recompensas, XP, insignias, guardado).
+            
+             Instancia perezosa y segura entre hilos (<see cref="T:System.Lazy`1"/>), constructor privado y sin estado
+             global mutable fuera de lo que expone.
+             </summary>
+        </member>
+        <member name="P:Kepler7.Core.Aplicacion.JuegoKepler7.Instancia">
+            <summary>La única instancia del juego.</summary>
+        </member>
+        <member name="P:Kepler7.Core.Aplicacion.JuegoKepler7.Control">
+            <summary>FACADE de la estación (arrancar, emergencia, apagar).</summary>
+        </member>
+        <member name="P:Kepler7.Core.Aplicacion.JuegoKepler7.ComandosEstacion">
+            <summary>COMMAND: historial deshacible de la base (construcción de naves).</summary>
+        </member>
+        <member name="P:Kepler7.Core.Aplicacion.JuegoKepler7.Boveda">
+            <summary>PROXY de la bóveda de datos.</summary>
+        </member>
+        <member name="E:Kepler7.Core.Aplicacion.JuegoKepler7.PatronDominado">
+            <summary>Se dispara cuando se obtiene una insignia nueva.</summary>
+        </member>
+        <member name="E:Kepler7.Core.Aplicacion.JuegoKepler7.PartidaFinalizada">
+            <summary>Se dispara cuando termina un combate, con el resumen listo para la pantalla final.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Aplicacion.JuegoKepler7.NuevoCombate(System.Nullable{System.Int32})">
+            <summary>Arma un combate nuevo con el escenario de Kepler-7, compartiendo la base y la bitácora del juego.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Aplicacion.JuegoKepler7.Dominar(Kepler7.Core.Aplicacion.PatronGoF)">
+            <summary>Marca una insignia. Las repetidas no hacen nada; la primera suma XP y se guarda al instante.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Aplicacion.JuegoKepler7.ConectarPatrones(Kepler7.Core.Dominio.Combate.MotorCombate)">
+            <summary>
+            Engancha los patrones que producen eventos durante el combate. Así el juego no depende de que cada
+            botón se acuerde de avisar: el logro se otorga cuando la mecánica realmente ocurre.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Aplicacion.PatronGoF">
+            <summary>Los doce patrones del TP. Cada uno se "domina" al usar su mecánica dentro del juego.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Aplicacion.PatronGoFInfo">
+            <summary>Textos para el panel de logros (nombre de la insignia y qué hay que hacer para obtenerla).</summary>
+        </member>
+        <member name="T:Kepler7.Core.Aplicacion.ProgresoJugador">
+            <summary>
+            Lo que se guarda entre ejecuciones (progreso.json en %AppData%\Kepler7): experiencia, monedas,
+            historial de partidas y patrones dominados. Es un contenedor de datos: la lógica de recompensas
+            vive en <see cref="T:Kepler7.Core.Aplicacion.JuegoKepler7"/>.
+            </summary>
+        </member>
+        <member name="P:Kepler7.Core.Aplicacion.ProgresoJugador.PatronesDominados">
+            <summary>Insignias obtenidas (los nombres de enum se guardan como texto en el JSON).</summary>
+        </member>
+        <member name="T:Kepler7.Core.Aplicacion.ResumenPartida">
+            <summary>Datos de la pantalla final: qué pasó en la partida y qué se ganó.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Aplicacion.ResumenPartida.#ctor(Kepler7.Core.Dominio.Combate.ResultadoCombate,System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Collections.Generic.IReadOnlyList{Kepler7.Core.Aplicacion.PatronGoF})">
+            <summary>Datos de la pantalla final: qué pasó en la partida y qué se ganó.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.ChainOfResponsibility.Armadura">
+            <summary>
+            Reduce una cantidad FIJA de cada golpe. Es eficaz contra daño cinético y solo la mitad de
+            eficaz contra energía (el blindaje físico no frena un rayo).
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.ChainOfResponsibility.Bloqueo">
+            <summary>Con cierta probabilidad logra interponer la guardia y absorbe un porcentaje del golpe.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.ChainOfResponsibility.Bloqueo.#ctor(System.Double,System.Double,System.Random)">
+            <param name="probabilidad">Chance de que el bloqueo salga bien (0-1).</param>
+            <param name="porcentajeAbsorbido">Fracción del daño que se absorbe si sale bien (0-1).</param>
+            <param name="azar">Generador de números aleatorios (inyectable para reproducir partidas).</param>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.ChainOfResponsibility.CadenaDefensa">
+            <summary>
+            Administra la cadena de un combatiente: permite construirla, agregar, quitar y reordenar eslabones
+            en tiempo de ejecución. Después de cada cambio vuelve a enlazar los eslabones y mantiene a
+            <see cref="P:Kepler7.Core.Comportamiento.ChainOfResponsibility.CadenaDefensa.Vida"/> siempre al final.
+            </summary>
+        </member>
+        <member name="P:Kepler7.Core.Comportamiento.ChainOfResponsibility.CadenaDefensa.Eslabones">
+            <summary>Copia del orden actual (el primero recibe el golpe, el último es siempre Vida).</summary>
+        </member>
+        <member name="E:Kepler7.Core.Comportamiento.ChainOfResponsibility.CadenaDefensa.Cambio">
+            <summary>Se dispara cuando cambia la composición u orden de la cadena (para refrescar la UI).</summary>
+        </member>
+        <member name="P:Kepler7.Core.Comportamiento.ChainOfResponsibility.CadenaDefensa.Descripcion">
+            <summary>Texto para mostrar, ej.: "Esquiva → Bloqueo → Armadura → Escudo → Vida".</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.ChainOfResponsibility.CadenaDefensa.Agregar(Kepler7.Core.Comportamiento.ChainOfResponsibility.IManejadorDanio,System.Nullable{System.Int32})">
+            <summary>Inserta un eslabón en la posición indicada; por defecto, justo antes de Vida.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.ChainOfResponsibility.CadenaDefensa.Quitar(Kepler7.Core.Comportamiento.ChainOfResponsibility.IManejadorDanio)">
+            <summary>Quita un eslabón. La vida no se puede quitar (devuelve false).</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.ChainOfResponsibility.CadenaDefensa.Mover(Kepler7.Core.Comportamiento.ChainOfResponsibility.IManejadorDanio,System.Int32)">
+            <summary>Reubica un eslabón. Nunca puede pasar por detrás de Vida.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.ChainOfResponsibility.CadenaDefensa.Procesar(Kepler7.Core.Comportamiento.ChainOfResponsibility.Danio,System.String)">
+            <summary>Lanza el daño por la cadena y devuelve el resumen del recorrido.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.ChainOfResponsibility.CadenaDefensa.Estandar(System.Int32,System.Int32,System.Int32,System.Double,System.Double,System.Random)">
+            <summary>Construye la cadena clásica Esquiva → Bloqueo → Armadura → Escudo → Vida (omite lo que valga 0).</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.ChainOfResponsibility.PasoDanio">
+            <summary>Una "parada" del daño en la cadena: qué eslabón lo recibió y cuánto quedaba antes y después.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.ChainOfResponsibility.PasoDanio.#ctor(System.String,System.Int32,System.Int32,System.String)">
+            <summary>Una "parada" del daño en la cadena: qué eslabón lo recibió y cuánto quedaba antes y después.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.ChainOfResponsibility.Danio">
+            <summary>
+            Mensaje que viaja por la cadena de defensas. Cada eslabón lo reduce (o lo detiene) y deja
+            constancia en el <see cref="P:Kepler7.Core.Comportamiento.ChainOfResponsibility.Danio.Trayecto"/>, que la interfaz usa para mostrar el recorrido del golpe.
+            </summary>
+        </member>
+        <member name="P:Kepler7.Core.Comportamiento.ChainOfResponsibility.Danio.Cantidad">
+            <summary>Daño inicial del ataque.</summary>
+        </member>
+        <member name="P:Kepler7.Core.Comportamiento.ChainOfResponsibility.Danio.Restante">
+            <summary>Daño que todavía no fue absorbido por ningún eslabón.</summary>
+        </member>
+        <member name="P:Kepler7.Core.Comportamiento.ChainOfResponsibility.Danio.DanioAVida">
+            <summary>Daño que finalmente llegó a los puntos de vida.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.ChainOfResponsibility.ResultadoDanio">
+            <summary>Resumen del impacto, listo para mostrar en la bitácora o en un panel de combate.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.ChainOfResponsibility.ResultadoDanio.#ctor(System.String,System.Int32,System.Int32,System.Boolean,System.Boolean,System.Collections.Generic.IReadOnlyList{Kepler7.Core.Comportamiento.ChainOfResponsibility.PasoDanio})">
+            <summary>Resumen del impacto, listo para mostrar en la bitácora o en un panel de combate.</summary>
+        </member>
+        <member name="P:Kepler7.Core.Comportamiento.ChainOfResponsibility.ResultadoDanio.Recorrido">
+            <summary>Ej.: "Esquiva [14→14] → Armadura [14→11] → Escudo [11→1] → Vida [1→0]".</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.ChainOfResponsibility.Escudo">
+            <summary>Reserva de puntos que absorbe daño hasta agotarse. Se puede recargar.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.ChainOfResponsibility.Escudo.Recargar(System.Int32)">
+            <summary>Recupera hasta <paramref name="cantidad"/> puntos y devuelve cuántos recuperó realmente.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.ChainOfResponsibility.Esquiva">
+            <summary>Primera línea: con cierta probabilidad evita el golpe por completo.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.ChainOfResponsibility.IManejadorDanio">
+            <summary>
+            CHAIN OF RESPONSIBILITY: cada capa de defensa decide si absorbe el daño (total o parcialmente)
+            o si lo transfiere al eslabón siguiente. El atacante no sabe qué capas existen.
+            </summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.ChainOfResponsibility.IManejadorDanio.EstablecerSiguiente(Kepler7.Core.Comportamiento.ChainOfResponsibility.IManejadorDanio)">
+            <summary>Lo usa <see cref="T:Kepler7.Core.Comportamiento.ChainOfResponsibility.CadenaDefensa"/> para (re)enlazar la cadena cuando se agregan, quitan o reordenan eslabones.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.ChainOfResponsibility.ManejadorDanioBase">
+            <summary>
+            Resuelve el enlace y el "¿sigo pasando?" una sola vez: el eslabón aplica su regla en
+            <see cref="M:Kepler7.Core.Comportamiento.ChainOfResponsibility.ManejadorDanioBase.Procesar(Kepler7.Core.Comportamiento.ChainOfResponsibility.Danio)"/> y, si todavía queda daño, la base lo reenvía al siguiente.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.ChainOfResponsibility.Vida">
+            <summary>
+            Último eslabón: lo que llega hasta acá lastima de verdad. Es TERMINAL: no tiene siguiente y la
+            <see cref="T:Kepler7.Core.Comportamiento.ChainOfResponsibility.CadenaDefensa"/> garantiza que siempre esté al final. Además guarda los puntos de vida.
+            </summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.ChainOfResponsibility.Vida.Curar(System.Int32)">
+            <summary>Devuelve cuánta vida se recuperó realmente.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.ChainOfResponsibility.Vida.AplicarDirecto(System.Int32)">
+            <summary>Daño que se salta las defensas (veneno). Devuelve cuánto se aplicó.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Command.AtacarComando">
+            <summary>
+            Atacar a un objetivo. Guarda una foto del objetivo antes y después del golpe: deshacer restaura la
+            de antes y rehacer vuelve a la de después, de modo que repetir el ataque da EXACTAMENTE el mismo
+            resultado (sin volver a tirar la esquiva ni el bloqueo).
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Command.ConstruirComando">
+            <summary>
+            Acción de gestión de la base: encargar una nave. Usa el Builder de la Fase 1 (IngenieroJefe + receta)
+            y la paga con los créditos de la base. Deshacer quita la nave y devuelve el dinero.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Command.CurarComando">
+            <summary>
+            Curar a un aliado (o a sí mismo): restituye vida y elimina el veneno. Respeta las restricciones del
+            estado del objetivo (un Berserk no acepta curación) y del curador (un aturdido no puede concentrarse).
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Command.EnfurecerComando">
+            <summary>
+            Entrar en furia: el combatiente pasa a Berserk (daña el doble, solo cuerpo a cuerpo, +50% de daño recibido,
+            sin curación y, al agotarse, queda aturdido). Gasta la acción de la ronda y se puede deshacer y rehacer.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Command.GestorComandos">
+            <summary>
+            INVOCADOR del patrón Command: ejecuta comandos y mantiene las pilas de deshacer y rehacer
+            más un historial legible. Ejecutar una acción nueva descarta lo que se podía rehacer.
+            </summary>
+        </member>
+        <member name="E:Kepler7.Core.Comportamiento.Command.GestorComandos.Cambio">
+            <summary>Se dispara cuando cambia el historial o alguna pila (para habilitar/deshabilitar los botones).</summary>
+        </member>
+        <member name="P:Kepler7.Core.Comportamiento.Command.GestorComandos.Historial">
+            <summary>Bitácora de operaciones en orden cronológico ("Ejecutado: …", "Deshecho: …", "Rehecho: …").</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.Command.GestorComandos.Limpiar">
+            <summary>Vacía las pilas (no se puede deshacer una ronda ya cerrada). El historial se conserva.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Command.IComando">
+            <summary>
+            COMMAND: una acción del jugador convertida en objeto. Al ser un objeto se puede ejecutar,
+            deshacer, guardar en un historial y volver a ejecutar (rehacer).
+            </summary>
+        </member>
+        <member name="P:Kepler7.Core.Comportamiento.Command.IComando.Descripcion">
+            <summary>Texto para el historial, ej. "Sgt. Rex ataca a Dron Cazador".</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.Command.IComando.Ejecutar">
+            <summary>Intenta ejecutar la acción. Solo los comandos que tuvieron éxito entran al historial.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.Command.IComando.Deshacer">
+            <summary>Revierte los efectos. Solo es válido después de una ejecución exitosa.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Command.MoverComando">
+            <summary>Mover una unidad (una vez por ronda). El alcance del movimiento lo decide su estado (State).</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.State.Aturdido">
+            <summary>Fuera de eje: no puede atacar, solo da un paso por turno y queda más expuesto (+25% de daño recibido).</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.State.Berserk">
+            <summary>
+            Furia ciega: daña el doble pero solo cuerpo a cuerpo (alcance 1), corre una casilla más, recibe
+            +50% de daño y no acepta curación. Al terminar, el agotamiento lo deja aturdido un turno.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.State.Envenenado">
+            <summary>
+            Debilitado por veneno: ataca al 75%, camina una casilla menos y, al terminar cada turno, pierde vida
+            directamente (el veneno ignora la cadena de defensas). Una curación lo elimina.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.State.EstadoPersonajeBase">
+            <summary>
+            Mecánica común que los estados parametrizan (multiplicador, alcance, pasos). Cada estado concreto
+            implementa sus tres operaciones eligiendo sus valores; la resolución compartida vive acá una sola vez.
+            </summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.State.EstadoPersonajeBase.AlcancePermitido(Kepler7.Core.Dominio.Combate.Combatiente)">
+            <summary>Por defecto el alcance propio del combatiente; Berserk y Aturdido lo redefinen.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.State.EstadoPersonajeBase.EjecutarAtaque(Kepler7.Core.Dominio.Combate.Combatiente,Kepler7.Core.Dominio.Combate.Combatiente,System.Double,System.Int32)">
+            <summary>Resuelve un ataque: validaciones, daño, paso por la cadena de defensas y efecto de arma envenenada.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.State.EstadoPersonajeBase.EjecutarMovimiento(Kepler7.Core.Dominio.Combate.Combatiente,Kepler7.Core.Dominio.Combate.Posicion,Kepler7.Core.Dominio.Combate.ContextoCombate,System.Int32)">
+            <summary>Resuelve un movimiento: límites del tablero, distancia permitida y casilla libre.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.State.EstadoPersonajeBase.AplicarDanio(Kepler7.Core.Dominio.Combate.Combatiente,Kepler7.Core.Comportamiento.ChainOfResponsibility.Danio,System.Double)">
+            <summary>Hace pasar el daño por la cadena de defensas, escalándolo antes si el estado lo exige.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.State.IEstadoPersonaje">
+            <summary>
+            STATE: el combatiente no decide cómo ataca, se mueve o recibe daño; delega todo en su estado actual.
+            Cambiar de estado cambia el comportamiento sin un solo "if" en el combatiente.
+            Los estados son INMUTABLES: avanzar un turno de veneno significa pasar a un Envenenado con un turno menos.
+            </summary>
+        </member>
+        <member name="P:Kepler7.Core.Comportamiento.State.IEstadoPersonaje.ColorHex">
+            <summary>Color "#RRGGBB" para pintar al combatiente según su estado.</summary>
+        </member>
+        <member name="P:Kepler7.Core.Comportamiento.State.IEstadoPersonaje.TurnosRestantes">
+            <summary>Turnos que le quedan al estado (0 = permanente).</summary>
+        </member>
+        <member name="P:Kepler7.Core.Comportamiento.State.IEstadoPersonaje.PermiteCuracion">
+            <summary>Restricción visible: algunos estados (Berserk) no aceptan curación.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.State.IEstadoPersonaje.MovimientoPermitido(Kepler7.Core.Dominio.Combate.Combatiente)">
+            <summary>Cuántas casillas puede recorrer el combatiente en este estado.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.State.IEstadoPersonaje.AlcancePermitido(Kepler7.Core.Dominio.Combate.Combatiente)">
+            <summary>Alcance de ataque en este estado (0 = no puede atacar). Lo usan los turnos automáticos para decidir si disparan o se acercan.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.State.IEstadoPersonaje.AlFinalizarTurno(Kepler7.Core.Dominio.Combate.Combatiente)">
+            <summary>Efectos de fin de turno (veneno, cuenta regresiva, transiciones de estado).</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.State.Normal">
+            <summary>Sin alteraciones: usa sus capacidades al 100%.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Strategy.DecisionEstrategia">
+            <summary>Lo que decidiría una estrategia concreta en la situación actual.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.Strategy.DecisionEstrategia.#ctor(System.String,Kepler7.Core.Comportamiento.Strategy.AccionIA)">
+            <summary>Lo que decidiría una estrategia concreta en la situación actual.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Strategy.ComparadorEstrategias">
+            <summary>
+            Pregunta a todas las estrategias qué harían el enemigo en el estado actual del campo, sin ejecutar
+            nada. Es la forma más clara de VER el efecto de cambiar la IA durante la partida.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Strategy.IAAgresiva">
+            <summary>Va siempre por el enemigo más cercano: si lo tiene a tiro ataca, si no, avanza hacia él.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Strategy.IAAleatoria">
+            <summary>Impredecible: elige al azar entre todas las acciones posibles en ese momento.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.Strategy.IAAleatoria.#ctor(System.Random)">
+            <summary>Si se indica, la IA sortea con este generador y no gasta el azar compartido de la partida.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Strategy.IACalculadora">
+            <summary>
+            Evalúa a cada objetivo con números: premia poder rematar a uno herido, apuntar al médico (el que
+            sostiene al escuadrón) y golpear a los más frágiles. Si nadie está a tiro, se acerca al mejor blanco.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Strategy.IADefensiva">
+            <summary>
+            Prioriza sobrevivir: si está herido o con el escudo bajo, se repliega o se cubre; recién cuando se
+            siente seguro ataca a quien tenga al alcance. Nunca persigue.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Strategy.AccionIA">
+            <summary>
+            Decisión de una IA. Es solo una DESCRIPCIÓN de lo que el enemigo quiere hacer: decidir no modifica
+            nada, por eso se puede consultar a las cuatro estrategias sobre la misma situación y comparar.
+            </summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.Strategy.AccionIA.#ctor(Kepler7.Core.Comportamiento.Strategy.TipoAccionIA,Kepler7.Core.Dominio.Combate.Combatiente,System.Nullable{Kepler7.Core.Dominio.Combate.Posicion},System.String)">
+            <summary>
+            Decisión de una IA. Es solo una DESCRIPCIÓN de lo que el enemigo quiere hacer: decidir no modifica
+            nada, por eso se puede consultar a las cuatro estrategias sobre la misma situación y comparar.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Strategy.IEstrategiaIA">
+            <summary>
+            STRATEGY: algoritmo de decisión intercambiable. El enemigo conserva una referencia a la estrategia
+            y se la puede cambiar en pleno combate; su conducta cambia sin tocar la clase Enemigo.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.TemplateMethod.TurnoComandante">
+            <summary>
+            El comandante marca como prioridad al enemigo más peligroso y, al cerrar su turno, emite una orden de
+            campo que recarga los escudos de los aliados cercanos (redefine el paso de finalización).
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.TemplateMethod.TurnoFrancotirador">
+            <summary>
+            El francotirador pelea de lejos: se aleja si lo tienen encima y, si no, le dispara al enemigo más frágil.
+            Redefine además el paso de inicio (apuntar).
+            </summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.TemplateMethod.TurnoFrancotirador.Actuar(Kepler7.Core.Comportamiento.Command.IComando)">
+            <summary>Replegarse gasta el movimiento, no la acción: tras reubicarse, dispara al más frágil que tenga a tiro.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.TemplateMethod.TurnoMedico">
+            <summary>El médico atiende primero a los envenenados y luego a los más heridos; si nadie lo necesita, se defiende.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.TemplateMethod.TurnoSoldado">
+            <summary>El soldado va al frente: elige al enemigo más cercano y lo ataca o se le acerca.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.TemplateMethod.EtapaTurno">
+            <summary>Una línea del historial de turnos: en qué etapa ocurrió y qué pasó.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.TemplateMethod.EtapaTurno.#ctor(System.String,System.String)">
+            <summary>Una línea del historial de turnos: en qué etapa ocurrió y qué pasó.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.TemplateMethod.ResultadoTurno">
+            <summary>Todo lo que ocurrió en un turno, etapa por etapa.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.TemplateMethod.ResultadoTurno.#ctor(System.String,System.Collections.Generic.IReadOnlyList{Kepler7.Core.Comportamiento.TemplateMethod.EtapaTurno})">
+            <summary>Todo lo que ocurrió en un turno, etapa por etapa.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.TemplateMethod.TurnoUnidad">
+            <summary>
+            TEMPLATE METHOD: el turno de TODAS las unidades sigue siempre el mismo orden (inicio, decisión, acción,
+            finalización). <see cref="M:Kepler7.Core.Comportamiento.TemplateMethod.TurnoUnidad.EjecutarTurno"/> no es virtual: fija el esqueleto. Las subclases solo
+            redefinen los pasos variables (la decisión es obligatoria; el resto, opcional).
+            </summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.TemplateMethod.TurnoUnidad.EjecutarTurno">
+            <summary>El esqueleto del algoritmo. NO es virtual: el orden de las etapas no se puede alterar.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.TemplateMethod.TurnoUnidad.Inicio">
+            <summary>Paso 1 (virtual): preparación del turno.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.TemplateMethod.TurnoUnidad.Decidir">
+            <summary>Paso 2 (ABSTRACTO): cada clase decide a su manera. Devuelve el comando elegido, o null si prefiere esperar.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.TemplateMethod.TurnoUnidad.Actuar(Kepler7.Core.Comportamiento.Command.IComando)">
+            <summary>Paso 3 (virtual): por defecto ejecuta la decisión a través del GestorComandos (queda en el historial y se puede deshacer).</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.TemplateMethod.TurnoUnidad.Finalizacion">
+            <summary>Paso 4 (virtual): cierre del turno; por defecto aplica los efectos de fin de turno del estado.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.TemplateMethod.TurnoUnidad.Registrar(System.String)">
+            <summary>Registra una línea en el historial del turno (y en la bitácora, si hay).</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.TemplateMethod.TurnoUnidad.AtacarOAcercarse(Kepler7.Core.Dominio.Combate.Combatiente)">
+            <summary>Si el objetivo está a tiro lo ataca; si no, avanza hacia él. Devuelve null si no hay camino útil.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Visitor.AplicadorVeneno">
+            <summary>
+            Unta veneno en el arsenal: las armas pasan a envenenar a quien golpean (se conecta con el patrón State)
+            y las pociones quedan contaminadas. Las armaduras no se ven afectadas.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Visitor.Arma">
+            <summary>Arma del inventario. Si está envenenada, cada golpe que conecta envenena al objetivo.</summary>
+        </member>
+        <member name="P:Kepler7.Core.Comportamiento.Visitor.Arma.Venenosa">
+            <summary>Solo los visitantes del Core la modifican (ver AplicadorVeneno).</summary>
+        </member>
+        <member name="P:Kepler7.Core.Comportamiento.Visitor.Arma.Aturdidora">
+            <summary>Si es true, cada golpe que conecta aturde al objetivo un turno (ver EstadoPersonajeBase.EjecutarAtaque).</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Visitor.ArmaduraItem">
+            <summary>
+            Armadura del inventario (se llama ArmaduraItem para no chocar con <see cref="T:Kepler7.Core.Comportamiento.ChainOfResponsibility.Armadura"/>,
+            el eslabón de la cadena de defensas: una es el objeto que se guarda, la otra la capa que protege).
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Visitor.CalculadorPrecio">
+            <summary>Calcula cuánto vale el inventario, en total y por categoría.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Visitor.ContadorArmas">
+            <summary>Cuenta las armas y cuántas están envenenadas.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Visitor.GeneradorEstadisticas">
+            <summary>Resume el poder ofensivo, curativo y defensivo del inventario.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Visitor.IItem">
+            <summary>
+            ELEMENTO del Visitor. Cada ítem solo sabe "aceptar" a un visitante y decirle quién es
+            (double dispatch): así se agregan operaciones nuevas al inventario sin tocar estas clases.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Visitor.IVisitor">
+            <summary>
+            VISITANTE: una operación sobre el inventario, con un método por tipo de ítem.
+            Cada instancia acumula su resultado: se crea una nueva por cada aplicación.
+            </summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.Visitor.IVisitor.ObtenerResultado">
+            <summary>Texto con lo que calculó o modificó, para mostrar en la interfaz.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Visitor.Inventario">
+            <summary>ESTRUCTURA de objetos del Visitor: la bodega del escuadrón.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.Visitor.Inventario.Aplicar(Kepler7.Core.Comportamiento.Visitor.IVisitor)">
+            <summary>Recorre todos los ítems con el visitante y devuelve su resultado.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comportamiento.Visitor.Inventario.Inicial">
+            <summary>Equipo inicial del escuadrón.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comportamiento.Visitor.Pocion">
+            <summary>Poción curativa. Si se contamina deja de ser utilizable.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comun.NivelBitacora">
+            <summary>Severidad de una entrada de la bitácora (la UI puede mapearla a colores).</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comun.EntradaBitacora">
+            <summary>Una línea del registro de eventos de la estación.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Comun.EntradaBitacora.#ctor(System.DateTime,System.String,System.String,Kepler7.Core.Comun.NivelBitacora)">
+            <summary>Una línea del registro de eventos de la estación.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comun.IBitacora">
+            <summary>
+            Canal por el que el Core "habla" con la interfaz sin conocerla.
+            La UI se suscribe a <see cref="E:Kepler7.Core.Comun.IBitacora.EntradaRegistrada"/> y pinta lo que llega.
+            </summary>
+        </member>
+        <member name="E:Kepler7.Core.Comun.IBitacora.EntradaRegistrada">
+            <summary>Se dispara en el mismo hilo que llamó a <see cref="M:Kepler7.Core.Comun.IBitacora.Registrar(System.String,System.String,Kepler7.Core.Comun.NivelBitacora)"/>; la UI debe hacer Invoke si hace falta.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Comun.Bitacora">
+            <summary>Implementación en memoria, segura entre hilos y con tope de capacidad.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Creacional.Builder.INaveBuilder">
+            <summary>
+            BUILDER: define los pasos para ensamblar una <see cref="T:Kepler7.Core.Creacional.Builder.Nave"/>.
+            Cada receta concreta decide QUÉ pieza monta en cada paso (o ninguna);
+            el orden y la selección de pasos los decide el <see cref="T:Kepler7.Core.Creacional.Builder.IngenieroJefe"/>.
+            </summary>
+        </member>
+        <member name="P:Kepler7.Core.Creacional.Builder.INaveBuilder.NombreReceta">
+            <summary>Nombre de la receta para mostrar en la UI (ej. "Exploradora").</summary>
+        </member>
+        <member name="M:Kepler7.Core.Creacional.Builder.INaveBuilder.Reiniciar">
+            <summary>Descarta lo construido hasta el momento y empieza una nave nueva.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Creacional.Builder.INaveBuilder.ObtenerNave">
+            <summary>Entrega la nave terminada y deja al builder listo para la siguiente.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Creacional.Builder.IngenieroJefe">
+            <summary>
+            DIRECTOR del patrón Builder: conoce el ORDEN de ensamblaje, no los materiales.
+            Con la misma secuencia y distinta receta se obtienen naves completamente distintas.
+            </summary>
+        </member>
+        <member name="M:Kepler7.Core.Creacional.Builder.IngenieroJefe.#ctor(Kepler7.Core.Creacional.Builder.INaveBuilder,Kepler7.Core.Comun.IBitacora)">
+            <param name="receta">Builder concreto a utilizar.</param>
+            <param name="bitacora">Opcional: si se pasa, cada paso del ensamblaje queda registrado para mostrarlo en la UI.</param>
+        </member>
+        <member name="M:Kepler7.Core.Creacional.Builder.IngenieroJefe.CambiarReceta(Kepler7.Core.Creacional.Builder.INaveBuilder)">
+            <summary>Permite al jugador elegir otra receta sin crear otro director.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Creacional.Builder.IngenieroJefe.ConstruirNaveBasica">
+            <summary>Solo el chasis: casco, motor y combustible (nave básica y barata).</summary>
+        </member>
+        <member name="M:Kepler7.Core.Creacional.Builder.IngenieroJefe.ConstruirNaveCompleta">
+            <summary>Ensamblaje total: los siete componentes, en orden.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Creacional.Builder.Nave">
+            <summary>
+            PRODUCTO del patrón Builder.
+            Los componentes son opcionales (una nave de carga puede no tener armas) y solo los builders
+            del Core pueden modificarlos: hacia afuera la nave es de solo lectura.
+            </summary>
+        </member>
+        <member name="M:Kepler7.Core.Creacional.Builder.Nave.Componentes">
+            <summary>Lista legible de los componentes realmente instalados.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Creacional.Builder.Nave.Describir">
+            <summary>Ficha completa para mostrar en la interfaz.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Creacional.Builder.RecetaBase">
+            <summary>
+            Esqueleto común de los builders concretos: guarda la nave en construcción y resuelve
+            Reiniciar/ObtenerNave. Las recetas solo implementan qué instalan en cada paso.
+            </summary>
+        </member>
+        <member name="P:Kepler7.Core.Creacional.Builder.RecetaBase.Producto">
+            <summary>La nave que se está armando; las subclases la completan paso a paso.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Creacional.Builder.RecetaCarga">
+            <summary>Carguero: bodega enorme y muchos tanques, sin armamento (el paso de armas queda vacío).</summary>
+        </member>
+        <member name="T:Kepler7.Core.Creacional.Builder.RecetaCombate">
+            <summary>Nave de guerra: blindada, triple armamento y escudo reforzado; poca autonomía.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Creacional.Builder.RecetaExploradora">
+            <summary>Nave de largo alcance: liviana, sensores potentes y mucha autonomía; casi sin armas.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Creacional.Prototype.IPrototipo`1">
+            <summary>
+            PROTOTYPE: un objeto que sabe producir una copia independiente de sí mismo.
+            Es genérica para que Clonar() devuelva el tipo concreto y no haga falta castear.
+            </summary>
+        </member>
+        <member name="M:Kepler7.Core.Creacional.Prototype.IPrototipo`1.Clonar">
+            <summary>Copia PROFUNDA: modificar la copia nunca debe alterar al original.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Creacional.Prototype.ResultadoPruebaClonacion">
+            <summary>Evidencia de la prueba de independencia, lista para mostrar en la interfaz.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Creacional.Prototype.ResultadoPruebaClonacion.#ctor(System.String,System.String,System.String,System.Boolean,System.Boolean,System.Boolean,System.Boolean)">
+            <summary>Evidencia de la prueba de independencia, lista para mostrar en la interfaz.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Creacional.Prototype.LaboratorioClonacion">
+            <summary>
+            Laboratorio de biotecnología: el CLIENTE del Prototype. Pide copias de un tripulante base,
+            les asigna una identidad nueva y puede demostrar que la copia es realmente independiente.
+            </summary>
+        </member>
+        <member name="M:Kepler7.Core.Creacional.Prototype.LaboratorioClonacion.#ctor(System.Int32)">
+            <param name="primerId">Primer Id que recibirá un clon (por defecto, a continuación de los 10.000 tripulantes base).</param>
+        </member>
+        <member name="M:Kepler7.Core.Creacional.Prototype.LaboratorioClonacion.ProbarIndependencia(Kepler7.Core.Dominio.Tripulante)">
+            <summary>
+            Clona al original, MODIFICA el clon (nombre, rango, habilidades y atributos) y comprueba
+            que el original conserva todos sus valores. Es la "prueba visible" que pide la consigna.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Dominio.AtributosTripulante">
+            <summary>
+            Objeto anidado dentro de <see cref="T:Kepler7.Core.Dominio.Tripulante"/>. Existe, entre otras cosas, para demostrar
+            que la clonación es profunda: si el Tripulante copiara solo la referencia, clon y original
+            compartirían estos valores.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Dominio.BaseEstacion">
+            <summary>
+            La base de Kepler-7 (la parte de "gestión"): administra créditos y la flota que se va construyendo.
+            Sus cambios pasan por comandos (ConstruirComando) para poder deshacerlos.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Dominio.Combate.CambioEstado">
+            <summary>Aviso de que un combatiente cambió de estado (la UI repinta su color o ícono).</summary>
+        </member>
+        <member name="M:Kepler7.Core.Dominio.Combate.CambioEstado.#ctor(Kepler7.Core.Dominio.Combate.Combatiente,Kepler7.Core.Comportamiento.State.IEstadoPersonaje,Kepler7.Core.Comportamiento.State.IEstadoPersonaje)">
+            <summary>Aviso de que un combatiente cambió de estado (la UI repinta su color o ícono).</summary>
+        </member>
+        <member name="T:Kepler7.Core.Dominio.Combate.SnapshotCombatiente">
+            <summary>Foto del combatiente para poder deshacer acciones (patrón Memento, mínimo).</summary>
+        </member>
+        <member name="M:Kepler7.Core.Dominio.Combate.SnapshotCombatiente.#ctor(Kepler7.Core.Dominio.Combate.Posicion,System.Int32,System.Collections.Generic.IReadOnlyDictionary{Kepler7.Core.Comportamiento.ChainOfResponsibility.Escudo,System.Int32},Kepler7.Core.Comportamiento.State.IEstadoPersonaje)">
+            <summary>Foto del combatiente para poder deshacer acciones (patrón Memento, mínimo).</summary>
+        </member>
+        <member name="T:Kepler7.Core.Dominio.Combate.Combatiente">
+            <summary>
+            Cualquier unidad del tablero. Reúne los tres patrones que viven "dentro" de un combatiente:
+             - CHAIN: <see cref="P:Kepler7.Core.Dominio.Combate.Combatiente.Defensas"/> es su cadena de defensas.
+             - STATE: <see cref="P:Kepler7.Core.Dominio.Combate.Combatiente.Estado"/>; atacar, mover y recibir daño se delegan en él.
+             - VISITOR: el <see cref="P:Kepler7.Core.Dominio.Combate.Combatiente.ArmaEquipada"/> viene del inventario que los visitantes pueden modificar.
+            </summary>
+        </member>
+        <member name="E:Kepler7.Core.Dominio.Combate.Combatiente.DanioRecibido">
+            <summary>Se dispara con cada golpe que llega a este combatiente, con el recorrido completo por la cadena de defensas.</summary>
+        </member>
+        <member name="P:Kepler7.Core.Dominio.Combate.Combatiente.HaMovido">
+            <summary>Ya movió en esta ronda. Lo marcan y desmarcan los comandos, por eso deshacer devuelve la acción.</summary>
+        </member>
+        <member name="P:Kepler7.Core.Dominio.Combate.Combatiente.HaActuado">
+            <summary>Ya atacó o curó en esta ronda.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Dominio.Combate.Combatiente.NuevaRonda">
+            <summary>Devuelve el presupuesto de acciones al comenzar una ronda.</summary>
+        </member>
+        <member name="P:Kepler7.Core.Dominio.Combate.Combatiente.PoderDeAtaque">
+            <summary>Ataque base más el daño del arma equipada.</summary>
+        </member>
+        <member name="P:Kepler7.Core.Dominio.Combate.Combatiente.Resistencia">
+            <summary>Cuánto hay que "romper" para derrotarlo: vida más puntos de escudo.</summary>
+        </member>
+        <member name="P:Kepler7.Core.Dominio.Combate.Combatiente.MovimientoDisponible">
+            <summary>Casillas que puede recorrer ahora, según su estado.</summary>
+        </member>
+        <member name="P:Kepler7.Core.Dominio.Combate.Combatiente.AlcanceDisponible">
+            <summary>Alcance de ataque ahora, según su estado (0 = no puede atacar).</summary>
+        </member>
+        <member name="M:Kepler7.Core.Dominio.Combate.Combatiente.EquiparArmadura(Kepler7.Core.Comportamiento.Visitor.ArmaduraItem)">
+            <summary>Ajusta la capa de Armadura de su cadena (o la agrega si no tenía) con la defensa del ítem.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Dominio.Combate.Combatiente.Defender">
+            <summary>Se cubre y recarga parte de su escudo.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Dominio.Combate.ContextoCombate">
+            <summary>
+            Todo lo que una IA, un turno o un comando necesitan saber del campo de batalla: quién está dónde,
+            qué casillas están libres y un generador de azar compartido (con semilla, para poder reproducir partidas).
+            </summary>
+        </member>
+        <member name="M:Kepler7.Core.Dominio.Combate.ContextoCombate.MasCercano``1(Kepler7.Core.Dominio.Combate.Combatiente,System.Collections.Generic.IEnumerable{``0})">
+            <summary>El candidato más cercano a <paramref name="desde"/> (desempata por nombre para ser determinista).</summary>
+        </member>
+        <member name="M:Kepler7.Core.Dominio.Combate.ContextoCombate.CasillasAlcanzables(Kepler7.Core.Dominio.Combate.Combatiente,System.Int32)">
+            <summary>Casillas libres a las que el combatiente llega con <paramref name="pasos"/> pasos.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Dominio.Combate.ContextoCombate.CasillaMasCercanaA(Kepler7.Core.Dominio.Combate.Combatiente,Kepler7.Core.Dominio.Combate.Posicion,System.Int32)">
+            <summary>La casilla alcanzable que más lo acerca a <paramref name="meta"/>; null si ninguna mejora su distancia actual.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Dominio.Combate.ContextoCombate.CasillaMasLejanaDe(Kepler7.Core.Dominio.Combate.Combatiente,Kepler7.Core.Dominio.Combate.Posicion,System.Int32)">
+            <summary>La casilla alcanzable que más lo aleja de <paramref name="amenaza"/>; null si ninguna mejora su distancia actual.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Dominio.Combate.Enemigo">
+            <summary>
+            Unidad hostil. Es el CONTEXTO del patrón Strategy: no sabe cómo decide, solo le pregunta a su
+            estrategia actual, que se puede reemplazar en cualquier momento de la partida.
+            </summary>
+        </member>
+        <member name="P:Kepler7.Core.Dominio.Combate.Enemigo.UltimaDecision">
+            <summary>Última decisión tomada: sirve para mostrar el efecto de cambiar la estrategia.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Dominio.Combate.EscenarioCombate">
+            <summary>
+            Escenario de arranque: el escuadrón de Kepler-7 contra cuatro enemigos, cada uno con una IA distinta,
+            en un tablero de 8x8. Con la misma semilla la batalla se reproduce idéntica.
+            </summary>
+        </member>
+        <member name="M:Kepler7.Core.Dominio.Combate.EscenarioCombate.Crear(System.Int32,System.Int32,Kepler7.Core.Comun.IBitacora,Kepler7.Core.Dominio.BaseEstacion)">
+            <param name="semilla">Semilla del azar: con la misma semilla la batalla es reproducible.</param>
+            <param name="creditosIniciales">Créditos de la base si no se le pasa una.</param>
+            <param name="bitacora">Bitácora compartida; si es null se crea una propia.</param>
+            <param name="baseEstacion">Base compartida con el resto del juego; si es null se crea una con <paramref name="creditosIniciales"/>.</param>
+        </member>
+        <member name="T:Kepler7.Core.Dominio.Combate.MotorCombate">
+            <summary>
+            Orquesta una batalla por rondas. Es el punto de entrada que usará la interfaz y donde se ven juntos
+            los patrones de comportamiento:
+             - TEMPLATE METHOD: <see cref="M:Kepler7.Core.Dominio.Combate.MotorCombate.EjecutarTurnoAutomatico(Kepler7.Core.Dominio.Combate.Personaje)"/> juega el turno de una unidad aliada.
+             - COMMAND: todo lo que hacen las unidades pasa por <see cref="P:Kepler7.Core.Dominio.Combate.MotorCombate.Comandos"/> (deshacer/rehacer).
+             - STRATEGY: en <see cref="M:Kepler7.Core.Dominio.Combate.MotorCombate.TerminarRonda"/> cada enemigo decide con su IA intercambiable.
+             - STATE / CHAIN / VISITOR: viven dentro de los combatientes y del <see cref="P:Kepler7.Core.Dominio.Combate.MotorCombate.Inventario"/>.
+            </summary>
+        </member>
+        <member name="F:Kepler7.Core.Dominio.Combate.MotorCombate.MaximoRondasPorDefecto">
+            <summary>Rondas que dura un combate antes de cerrarse por tiempo si nadie ganó.</summary>
+        </member>
+        <member name="P:Kepler7.Core.Dominio.Combate.MotorCombate.MaximoRondas">
+            <summary>Tope de rondas: si la última termina sin vencedor, el combate se cierra con TiempoAgotado</summary>
+        </member>
+        <member name="M:Kepler7.Core.Dominio.Combate.MotorCombate.EjecutarTurnoAutomatico(Kepler7.Core.Dominio.Combate.Personaje)">
+            <summary>Juega automáticamente el turno de una unidad aliada según su clase (Template Method).</summary>
+        </member>
+        <member name="M:Kepler7.Core.Dominio.Combate.MotorCombate.TerminarRonda">
+            <summary>
+            Cierra la ronda: las unidades que no jugaron cierran su turno (efectos de estado), actúan los enemigos
+            según su estrategia, se limpia el historial deshacible y se evalúa victoria o derrota.
+            </summary>
+        </member>
+        <member name="M:Kepler7.Core.Dominio.Combate.MotorCombate.Terminar(Kepler7.Core.Dominio.Combate.ResultadoCombate,System.String,Kepler7.Core.Comun.NivelBitacora)">
+            <summary>Punto único de cierre del combate: fija el resultado, lo registra y avisa a quien escuche.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Dominio.Combate.MotorCombate.Ejecutar(Kepler7.Core.Dominio.Combate.Enemigo,Kepler7.Core.Comportamiento.Strategy.AccionIA)">
+            <summary>Traduce la decisión de la IA en una acción real. Los enemigos reutilizan los mismos comandos que el jugador.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Dominio.Combate.ClaseUnidad">
+            <summary>Especialidad de cada miembro del escuadrón; decide qué TurnoUnidad le corresponde.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Dominio.Combate.Personaje">
+            <summary>Miembro del escuadrón de Kepler-7 controlado por el jugador.</summary>
+        </member>
+        <member name="P:Kepler7.Core.Dominio.Combate.Personaje.PoderCuracion">
+            <summary>Vida que restituye con CurarComando (solo el médico tiene un valor significativo).</summary>
+        </member>
+        <member name="T:Kepler7.Core.Dominio.Combate.Posicion">
+            <summary>Casilla del tablero táctico.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Dominio.Combate.Posicion.#ctor(System.Int32,System.Int32)">
+            <summary>Casilla del tablero táctico.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Dominio.Combate.Posicion.Distancia(Kepler7.Core.Dominio.Combate.Posicion)">
+            <summary>Distancia Manhattan (cuadras): lo que cuesta caminar o apuntar en una grilla sin diagonales.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Dominio.Combate.ResultadoAccion">
+            <summary>Resultado de cualquier acción de combate: si funcionó, qué pasó y (si hubo golpe) el detalle del daño.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Dominio.Combate.ResultadoAccion.#ctor(System.Boolean,System.String,Kepler7.Core.Comportamiento.ChainOfResponsibility.ResultadoDanio)">
+            <summary>Resultado de cualquier acción de combate: si funcionó, qué pasó y (si hubo golpe) el detalle del daño.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Dominio.Tripulante">
+            <summary>
+            Entidad compartida por dos patrones:
+             - FLYWEIGHT: Nombre, Id y Rango son estado EXTRÍNSECO (propio de cada tripulante); la
+               <see cref="P:Kepler7.Core.Dominio.Tripulante.Especie"/> es estado INTRÍNSECO y se comparte entre miles de tripulantes.
+             - PROTOTYPE: <see cref="M:Kepler7.Core.Dominio.Tripulante.Clonar"/> hace una copia profunda de todo lo que es propio del
+               tripulante (habilidades y atributos) pero NO copia la especie: el flyweight se comparte
+               por diseño, clonarlo rompería la garantía de "una instancia por especie".
+            </summary>
+        </member>
+        <member name="M:Kepler7.Core.Dominio.Tripulante.#ctor(Kepler7.Core.Dominio.Tripulante)">
+            <summary>Constructor de copia: solo lo usa <see cref="M:Kepler7.Core.Dominio.Tripulante.Clonar"/>.</summary>
+        </member>
+        <member name="P:Kepler7.Core.Dominio.Tripulante.Id">
+            <summary>Identificador único. Lo reasigna el laboratorio al registrar un clon.</summary>
+        </member>
+        <member name="P:Kepler7.Core.Dominio.Tripulante.Especie">
+            <summary>Estado intrínseco compartido (Flyweight).</summary>
+        </member>
+        <member name="T:Kepler7.Core.Dominio.RolUsuario">
+            <summary>Roles de la estación. Solo Capitán y Oficial de Seguridad pasan el Proxy de la bóveda.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Dominio.Usuario">
+            <summary>Persona que está operando la consola de la estación.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Dominio.Usuario.#ctor(System.String,Kepler7.Core.Dominio.RolUsuario)">
+            <summary>Persona que está operando la consola de la estación.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Dominio.Sesion">
+            <summary>
+            Sesión actual. La UI cambia el usuario (por ejemplo con un combo de roles)
+            y el Proxy consulta siempre al usuario vigente.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Bridge.CifradoAES">
+            <summary>
+            AES-256 real (System.Security.Cryptography, parte de .NET). Cada mensaje usa un IV aleatorio
+            que viaja al comienzo del paquete; la salida es Base64(IV + datos cifrados).
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Bridge.CifradoCuantico">
+            <summary>
+            Cifrado "cuántico" ficticio inspirado en la distribución cuántica de claves:
+            cada mensaje usa una clave aleatoria de un solo uso (one-time pad, XOR) tan larga como el texto.
+            Al descifrar, la clave se consume: "el estado cuántico colapsa" y no se puede leer dos veces.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Bridge.ICifrado">
+            <summary>
+            IMPLEMENTADOR del Bridge: la jerarquía de mecanismos de cifrado.
+            Evoluciona de forma independiente a la jerarquía de mensajes.
+            </summary>
+        </member>
+        <member name="P:Kepler7.Core.Estructural.Bridge.ICifrado.Nombre">
+            <summary>Nombre para mostrar en la UI.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Estructural.Bridge.ICifrado.Descifrar(System.String)">
+            <summary>Operación inversa, la que haría el receptor en la Tierra.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Bridge.ResultadoEnvio">
+            <summary>Constancia de un envío, con todo lo que la UI necesita mostrar.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Estructural.Bridge.ResultadoEnvio.#ctor(System.String,Kepler7.Core.Estructural.Bridge.PrioridadMensaje,System.String,System.String,System.String,System.String,Kepler7.Core.Estructural.Bridge.ICifrado)">
+            <summary>Constancia de un envío, con todo lo que la UI necesita mostrar.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Estructural.Bridge.ResultadoEnvio.DescifrarEnDestino">
+            <summary>Simula la recepción en la Tierra: aplica el descifrado del mismo mecanismo usado al enviar.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Bridge.Mensaje">
+            <summary>
+            ABSTRACCIÓN del Bridge. Define "qué" se envía (tipo de mensaje) y delega el "cómo se protege"
+            en un <see cref="T:Kepler7.Core.Estructural.Bridge.ICifrado"/>. Así 3 tipos × 3 cifrados = 9 combinaciones con solo 3 + 3 clases,
+            y la combinación se puede cambiar en tiempo de ejecución.
+            </summary>
+        </member>
+        <member name="P:Kepler7.Core.Estructural.Bridge.Mensaje.Cifrado">
+            <summary>El puente: referencia a la jerarquía de implementación.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Estructural.Bridge.Mensaje.Formatear">
+            <summary>Cada tipo de mensaje arma su encabezado y estilo propios.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Estructural.Bridge.Mensaje.CambiarCifrado(Kepler7.Core.Estructural.Bridge.ICifrado)">
+            <summary>Cambia el mecanismo de cifrado sin tocar el tipo de mensaje.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Bridge.MensajeAlerta">
+            <summary>Aviso de un problema que requiere atención pronto.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Bridge.MensajeEmergencia">
+            <summary>Pedido de auxilio: máxima prioridad, exige acuse de recibo.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Bridge.MensajeTexto">
+            <summary>Comunicación rutinaria con la Tierra.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Bridge.SinCifrado">
+            <summary>Transmisión en claro: rápida, pero cualquiera que intercepte la señal puede leerla.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Facade.EstadoSubsistema">
+            <summary>Foto de solo lectura de un subsistema, para que la UI pueda dibujarlo sin tocarlo.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Estructural.Facade.EstadoSubsistema.#ctor(System.String,System.Boolean,System.Int32,System.String)">
+            <summary>Foto de solo lectura de un subsistema, para que la UI pueda dibujarlo sin tocarlo.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Facade.ControlCentral">
+            <summary>
+            FACADE: tres operaciones simples para manejar seis subsistemas.
+            Los subsistemas son internos y se crean aquí adentro, de modo que el formulario cliente
+            no puede invocarlos directamente. La UI sigue la secuencia coordinada suscribiéndose a
+            <see cref="P:Kepler7.Core.Estructural.Facade.ControlCentral.Bitacora"/> y dibuja el estado con <see cref="M:Kepler7.Core.Estructural.Facade.ControlCentral.ObtenerEstadoSubsistemas"/>.
+            </summary>
+        </member>
+        <member name="M:Kepler7.Core.Estructural.Facade.ControlCentral.IniciarTurno">
+            <summary>
+            Avanza un turno. Si la estación está apagada ejecuta antes la secuencia de arranque;
+            si venía de una emergencia, la da por terminada y normaliza los sistemas.
+            </summary>
+        </member>
+        <member name="M:Kepler7.Core.Estructural.Facade.Subsistemas.Energia.ProcesarTurno">
+            <summary>Después de una emergencia el reactor se recupera de a poco, turno a turno.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Facade.Subsistemas.SubsistemaBase">
+            <summary>
+            Base común de los subsistemas. Es INTERNA a propósito: desde Kepler7.Game es imposible
+            instanciar o invocar un subsistema; el único camino es <see cref="T:Kepler7.Core.Estructural.Facade.ControlCentral"/>.
+            </summary>
+        </member>
+        <member name="P:Kepler7.Core.Estructural.Facade.Subsistemas.SubsistemaBase.Nivel">
+            <summary>Rendimiento 0-100 (la UI lo puede dibujar como barra).</summary>
+        </member>
+        <member name="M:Kepler7.Core.Estructural.Facade.Subsistemas.SubsistemaBase.ProcesarTurno">
+            <summary>Mantenimiento que ocurre en cada turno. Los subsistemas pueden redefinirlo.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Flyweight.Especie">
+            <summary>Implementación concreta del flyweight. Constructor interno: solo se crea desde el Core.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Flyweight.CatalogoEspecies">
+            <summary>Datos de las cinco especies de Kepler-7 (la "fuente" desde donde se construyen los flyweights).</summary>
+        </member>
+        <member name="M:Kepler7.Core.Estructural.Flyweight.CatalogoEspecies.CrearIndependiente(System.String)">
+            <summary>
+            Crea una especie PRIVADA (sin compartir) con copias propias de los textos, como si cada
+            tripulante cargara su ficha desde disco. Solo la usa la comparación "sin Flyweight".
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Flyweight.ResultadoComparacionFlyweight">
+            <summary>Resultado de comparar la misma población CON y SIN Flyweight.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Estructural.Flyweight.ResultadoComparacionFlyweight.#ctor(System.Int32,System.Int32,System.Int32,System.Int64,System.Int64,System.Int64,System.Int64)">
+            <summary>Resultado de comparar la misma población CON y SIN Flyweight.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Flyweight.ComparadorFlyweight">
+            <summary>
+            Comparación REAL (no simulada): construye la población dos veces y mide la memoria con el GC.
+            "Sin Flyweight" cada tripulante recibe su propia copia de la especie.
+            Las cifras exactas varían entre ejecuciones; lo que importa es la proporción.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Flyweight.FabricaEspecies">
+            <summary>
+            FLYWEIGHT FACTORY: garantiza UNA sola instancia por especie. Si ya existe, la reutiliza;
+            si no, la crea y la guarda en el diccionario.
+            </summary>
+        </member>
+        <member name="P:Kepler7.Core.Estructural.Flyweight.FabricaEspecies.InstanciasCreadas">
+            <summary>CONTADOR de la consigna: cuántos objetos Especie se crearon realmente (tope: 5).</summary>
+        </member>
+        <member name="P:Kepler7.Core.Estructural.Flyweight.FabricaEspecies.SolicitudesAtendidas">
+            <summary>Cuántas veces se pidió una especie (en la demo: 10.000). Contrasta con <see cref="P:Kepler7.Core.Estructural.Flyweight.FabricaEspecies.InstanciasCreadas"/>.</summary>
+        </member>
+        <member name="P:Kepler7.Core.Estructural.Flyweight.FabricaEspecies.NombresDisponibles">
+            <summary>Especies que la estación conoce.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Flyweight.GeneradorTripulantes">
+            <summary>Puebla la estación con tripulantes. Cada uno obtiene su especie a través de la fábrica.</summary>
+        </member>
+        <member name="F:Kepler7.Core.Estructural.Flyweight.GeneradorTripulantes.PoblacionEstacion">
+            <summary>Población total de Kepler-7.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Estructural.Flyweight.GeneradorTripulantes.Generar(System.Int32,Kepler7.Core.Estructural.Flyweight.FabricaEspecies,System.Nullable{System.Int32})">
+            <summary>Genera tripulantes compartiendo especies mediante la <paramref name="fabrica"/> (CON Flyweight).</summary>
+        </member>
+        <member name="M:Kepler7.Core.Estructural.Flyweight.GeneradorTripulantes.GenerarCon(System.Int32,System.Func{System.String,Kepler7.Core.Estructural.Flyweight.IEspecie},System.Nullable{System.Int32})">
+            <summary>Núcleo común: el "proveedor" decide si la especie se comparte o se duplica.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Flyweight.IEspecie">
+            <summary>
+            FLYWEIGHT: estado INTRÍNSECO de una especie. Es inmutable, idéntico para todos los
+            tripulantes de esa especie y por eso se comparte (solo existen cinco en toda la estación).
+            </summary>
+        </member>
+        <member name="P:Kepler7.Core.Estructural.Flyweight.IEspecie.ColorHex">
+            <summary>Color en formato "#RRGGBB". El Core no usa System.Drawing; la UI lo convierte.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Proxy.BovedaDatos">
+            <summary>
+            SUJETO REAL: ejecuta las operaciones sin preguntar nada. No sabe de roles ni de permisos;
+            esa responsabilidad es del <see cref="T:Kepler7.Core.Estructural.Proxy.ProxyBoveda"/>.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Proxy.IBoveda">
+            <summary>
+            SUJETO común del Proxy: la bóveda real y su guardián exponen exactamente el mismo contrato,
+            así el cliente no sabe (ni le importa) con cuál está hablando.
+            </summary>
+        </member>
+        <member name="M:Kepler7.Core.Estructural.Proxy.IBoveda.ListarArchivos">
+            <summary>Ids de los archivos guardados (la UI lo necesita para armar la lista; el Proxy también lo protege).</summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Proxy.ProxyBoveda">
+            <summary>
+            PROXY DE PROTECCIÓN: se interpone entre el cliente y la <see cref="T:Kepler7.Core.Estructural.Proxy.BovedaDatos"/> real.
+            Antes de delegar verifica el rol del usuario de la <see cref="T:Kepler7.Core.Dominio.Sesion"/>: solo Capitán y
+            Oficial de Seguridad pasan. El resto es rechazado (excepción) y el intento queda registrado en disco.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Proxy.IntentoAcceso">
+            <summary>Un intento rechazado por el Proxy. Se guarda en UTC; la UI lo convierte a hora local.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Estructural.Proxy.IntentoAcceso.#ctor(System.DateTime,System.String,Kepler7.Core.Dominio.RolUsuario,System.String,System.String)">
+            <summary>Un intento rechazado por el Proxy. Se guarda en UTC; la UI lo convierte a hora local.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Proxy.AccesoDenegadoException">
+            <summary>Se lanza cuando el Proxy rechaza una operación. Transporta el intento para que la UI lo muestre.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Estructural.Proxy.RegistroAccesosDenegados">
+            <summary>
+            Registro PERSISTENTE de los intentos denegados: se carga al arrancar y se guarda a disco
+            (JSON en %AppData%\Kepler7\) cada vez que se agrega uno, así sobrevive entre ejecuciones.
+            </summary>
+        </member>
+        <member name="T:Kepler7.Core.Persistencia.RutasKepler7">
+            <summary>Ubicaciones de archivos del juego. Nunca se escribe junto al ejecutable.</summary>
+        </member>
+        <member name="P:Kepler7.Core.Persistencia.RutasKepler7.CarpetaDatos">
+            <summary>%AppData%\Kepler7\ en Windows.</summary>
+        </member>
+        <member name="T:Kepler7.Core.Persistencia.AlmacenJson">
+            <summary>
+            Lectura/escritura de objetos como JSON (System.Text.Json) dentro de una carpeta.
+            La carpeta es inyectable para poder probar sin tocar el AppData real.
+            </summary>
+        </member>
+        <member name="M:Kepler7.Core.Persistencia.AlmacenJson.Cargar``1(System.String,System.Func{``0})">
+            <summary>Carga el archivo; si no existe o está corrupto devuelve el valor por defecto.</summary>
+        </member>
+        <member name="M:Kepler7.Core.Persistencia.AlmacenJson.Guardar``1(System.String,``0)">
+            <summary>Guarda de forma atómica: escribe a un temporal y luego reemplaza, para no dejar JSON a medias.</summary>
+        </member>
+    </members>
+</doc>

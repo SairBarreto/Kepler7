@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Kepler7.Game</RootNamespace>
+    <AssemblyName>Kepler7.Game</AssemblyName>
+    <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
+    <ForceDesignerDpiUnaware>true</ForceDesignerDpiUnaware>
+    <ApplicationIcon>IconoKepler7.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="IconoKepler7.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- La interfaz solo conoce al Core; el Core no conoce a la interfaz. -->
+    <ProjectReference Include="..\Kepler7.Core\Kepler7.Core.csproj" />
+  </ItemGroup>
+
+</Project>
